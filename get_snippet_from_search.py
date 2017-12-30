@@ -17,8 +17,8 @@ results = service.users().messages().list(userId=userID, q=query).execute()
 messages = results.get('messages', [])
 for a_message in messages:
   mid = a_message['id']
-  msgObject = service.users().messages().get(userId=userID,id=mid).execute()
-  for a_header in msgObject['payload']['headers']:
+  msg_object = service.users().messages().get(userId=userID,id=mid).execute()
+  for a_header in msg_object['payload']['headers']:
     if a_header['name'] == "To":
       print("Recipient is: " + a_header['value'])
     elif a_header['name'] == "From":
@@ -28,7 +28,7 @@ for a_message in messages:
     elif a_header['name'] == "Message-ID":
       print("Message ID is: " + a_header['value'])
   print("Snippet from email: ")
-  snippet = msgObject['snippet']
+  snippet = msg_object['snippet']
   print(snippet)
   print()
 exit()
