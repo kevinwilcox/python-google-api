@@ -15,18 +15,18 @@ http_auth = delegated.authorize(httplib2.Http())
 service = discovery.build('gmail', 'v1', http=http_auth)
 results = service.users().messages().list(userId=userID, q=query).execute()
 messages = results.get('messages', [])
-for aMessage in messages:
-  mid = aMessage['id']
+for a_message in messages:
+  mid = a_message['id']
   msgObject = service.users().messages().get(userId=userID,id=mid).execute()
-  for aHeader in msgObject['payload']['headers']:
-    if aHeader['name'] == "To":
-      print("Recipient is: " + aHeader['value'])
-    elif aHeader['name'] == "From":
-      print("Sender is: " + aHeader['value'])
-    elif aHeader['name'] == "Subject":
-      print("Subject is: " + aHeader['value'])
-    elif aHeader['name'] == "Message-ID":
-      print("Message ID is: " + aHeader['value'])
+  for a_header in msgObject['payload']['headers']:
+    if a_header['name'] == "To":
+      print("Recipient is: " + a_header['value'])
+    elif a_header['name'] == "From":
+      print("Sender is: " + a_header['value'])
+    elif a_header['name'] == "Subject":
+      print("Subject is: " + a_header['value'])
+    elif a_header['name'] == "Message-ID":
+      print("Message ID is: " + a_header['value'])
   print("Snippet from email: ")
   snippet = msgObject['snippet']
   print(snippet)
