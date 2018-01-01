@@ -1,7 +1,6 @@
 import api_info
 import argparse
 import httplib2
-from time import sleep
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -31,14 +30,18 @@ except Exception as e:
 if query == '':
   print()
   print("No query string was provided. This will delete everything in the user's mailbox.")
-  print("Pausing script for ten seconds in case this is not what you intended")
-  for ctr in range(0, 10):
-    remaining = 10 - ctr
-    print(str(remaining))
-    sleep(1)
-    ctr += 1
-  print("Continuing with delete")
+  print("This is highly destructive; to perform this action use GAM or remove this safety check")
+  print("Please re-run with --query <>, where the query string follows https://support.google.com/mail/answer/7190?hl=en")
+  print("Exiting...")
   print()
+  exit()
+
+if userID == '':
+  print()
+  print("No user was provided; this script requires a user")
+  print("Please run again with --user <email_address> or --user any")
+  print()
+  exit()
 
 try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
@@ -51,13 +54,7 @@ except Exception as e:
   print("This is a fatal error, exiting")
   exit()
 
-if userID == '':
-  print()
-  print("No user was provided; this script requires a user")
-  print("Please run again with --user <email_address> or --user any")
-  print()
-  exit()
-elif userID == 'any':
+if userID == 'any':
   try:
     results = service.users().list(domain=api_info.google_domain, orderBy='email').execute()
     domain_users = results.get('users', [])
