@@ -43,8 +43,6 @@ if userID == '':
   print()
   exit()
 
-
-
 if userID == 'any':
   try:
     sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
