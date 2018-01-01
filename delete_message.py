@@ -43,23 +43,18 @@ if userID == '':
   print()
   exit()
 
-try:
-  sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
-  delegated = sa_creds.create_delegated(api_info.google_email)
-  http_auth = delegated.authorize(httplib2.Http())
-  service = discovery.build('admin', 'directory_v1', http=http_auth)
-except Exception as e:
-  print("Error: couldn't connect to Google with the provided information")
-  print(repr(e))
-  print("This is a fatal error, exiting")
-  exit()
+
 
 if userID == 'any':
   try:
+    sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
+    delegated = sa_creds.create_delegated(api_info.google_email)
+    http_auth = delegated.authorize(httplib2.Http())
+    service = discovery.build('admin', 'directory_v1', http=http_auth)
     results = service.users().list(domain=api_info.google_domain, orderBy='email').execute()
     domain_users = results.get('users', [])
   except Exception as e:
-    print("Error: couldn't retrieve user list")
+    print("Error connecting to Google and retrieving user list")
     print(repr(e))
     print("This is a fatal error, exiting")
     exit()
