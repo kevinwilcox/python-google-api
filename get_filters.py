@@ -17,7 +17,7 @@ except Exception as e:
 
 try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
-  delegated = sa_creds.create_delegated(api_info.google_email)
+  delegated = sa_creds.create_delegated(userID)
   http_auth = delegated.authorize(httplib2.Http())
   service = discovery.build('gmail', 'v1', http=http_auth)
 except Exception as e:
