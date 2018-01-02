@@ -5,20 +5,15 @@ This is a collection of scripts targeted primarily at incident responders in org
 The following python modules are either required (and are available via pip):
 
  - httplib2
-
  - google-api-python-client
-
  - oauth2client
 
 
 Additionally, some scripts use:
 
  - os
-
  - json
-
  - base64
-
  - argparse
 
 
