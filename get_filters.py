@@ -8,16 +8,16 @@ try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="the complete email address to search; the default is all", default = 'all')
   args = parser.parse_args()
-  userID = args.user
+  user_id = args.user
 except Exception as e:
-  print("Error: couldn't assign a value to userID")
+  print("Error: couldn't assign a value to user_id")
   print(repr(e))
   print("This is a fatal error, exiting")
   exit()
 
 try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
-  delegated = sa_creds.create_delegated(userID)
+  delegated = sa_creds.create_delegated(user_id)
   http_auth = delegated.authorize(httplib2.Http())
   service = discovery.build('gmail', 'v1', http=http_auth)
 except Exception as e:
@@ -27,7 +27,7 @@ except Exception as e:
   exit()
 
 try:
-  results = service.users().settings().filters().list(userId=userID).execute()
+  results = service.users().settings().filters().list(userId=user_id).execute()
   filters = results.get('filter', [])
 except Exception as e:
   print("Error: connected to Google but couldn't retrieve activities")

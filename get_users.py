@@ -10,11 +10,14 @@ try:
   parser.add_argument('--admin', help="boolean flag to request only admin users, default is false", action='store_true')
   parser.add_argument('--deleted', help="the complete email address to search; the default is all", action='store_true')
   parser.add_argument('--superadmin', help="boolean flag to request only superadmin users, default is false", action='store_true')
+  parser.add_argument('--count', help="the number of results to return per API request, default is the max of 500; note this is not the total count of results to retrieve, it is the max the script will fetch per request; the script will continue requesting until all users are returned", default = 500)
   args                = parser.parse_args()
   user_email          = args.user
   admin_only          = args.admin
+  max_results         = args.count
   show_deleted        = args.deleted
   super_admin_only    = args.superadmin
+
 except Exception as e:
   print("Error: couldn't determine whether to retrieve deleted users")
   print(repr(e))
@@ -34,6 +37,7 @@ except Exception as e:
 
 try:
   search_string = ''
+  domain_users = []
   if user_email != '':
       search_string = "email:" + user_email
   if admin_only == True:
@@ -46,8 +50,14 @@ try:
       search_string = "isAdmin=true"
     else:
       search_string += " AND isAdmin=true"
-  results = service.users().list(domain=api_info.google_domain, orderBy='email', showDeleted=show_deleted, query=search_string).execute()
-  domain_users = results.get('users', [])
+  results = service.users().list(domain=api_info.google_domain, orderBy='email', showDeleted=show_deleted, query=search_string, maxResults = max_results).execute()
+  if 'users' in results:
+    domain_users.extend(results.get('users', []))
+  while 'nextPageToken' in results:
+    time.sleep(0.25)
+    page_token = results['nextPageToken']
+    results = service.users().list(domain=api_info.google_domain, orderBy='email', showDeleted=show_deleted, query=search_string, maxResults = max_results, pageToken = page_token).execute()
+    domain_users.extend(results.get('users', []))
 except Exception as e:
   print("Error: connected to Google but couldn't retrieve user list")
   print(repr(e))

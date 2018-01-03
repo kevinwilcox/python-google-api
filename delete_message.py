@@ -1,3 +1,4 @@
+import time
 import api_info
 import argparse
 import httplib2
@@ -17,7 +18,7 @@ try:
   parser.add_argument('--query', help="the string to search; for examples, see https://support.google.com/mail/answer/7190?hl=en", default = '')
   parser.add_argument('--skip-bin', help="the default action is to move to Bin; specify this flag to skip the Bin", dest='skip_bin', action='store_true')
   args      = parser.parse_args()
-  userID    = args.user
+  user_id    = args.user
   query     = args.query
   skip_bin  = args.skip_bin
 except Exception as e:
@@ -36,21 +37,28 @@ if query == '':
   print()
   exit()
 
-if userID == '':
+if user_id == '':
   print()
   print("No user was provided; this script requires a user")
   print("Please run again with --user <email_address> or --user any")
   print()
   exit()
 
-if userID == 'any':
+if user_id == 'any':
   try:
+    domain_users = []
     sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
     delegated = sa_creds.create_delegated(api_info.google_email)
     http_auth = delegated.authorize(httplib2.Http())
     service = discovery.build('admin', 'directory_v1', http=http_auth)
     results = service.users().list(domain=api_info.google_domain, orderBy='email').execute()
-    domain_users = results.get('users', [])
+    if 'users' in results:
+      domain_users.extend(results.get('users', []))
+    while 'nextPageToken' in results:
+      time.sleep(0.25)
+      page_token = results['nextPageToken']
+      results = service.users().list(domain=api_info.google_domain, orderBy='email', pageToken=page_token).execute()
+      domain_users.extend(results.get('users', []))
   except Exception as e:
     print("Error connecting to Google and retrieving user list")
     print(repr(e))
@@ -60,7 +68,7 @@ if userID == 'any':
   for a_domain_user in domain_users:
     user_id_list.append(a_domain_user['primaryEmail'])
 else:
-  user_id_list = [userID]
+  user_id_list = [user_id]
 
 for current_user_id in user_id_list:
   print()
@@ -79,8 +87,15 @@ for current_user_id in user_id_list:
     exit()
 
   try:
+    messages = []
     results = service.users().messages().list(userId=current_user_id, q=query).execute()
-    messages = results.get('messages', [])
+    if 'messages' in results:
+      messages.extend(results.get('messages', []))
+    while 'nextPageToken' in results:
+      time.sleep(0.25)
+      page_token = results['nextPageToken']
+      results = service.users().messages().list(userId=current_user_id, q=query, pageToken=page_token).execute()
+      message.extend(results.get('messages', []))
   except Exception as e:
     print()
     print("Error: could connect to Google but couldn't retrieve the list of message IDs")
