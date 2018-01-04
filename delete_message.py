@@ -5,13 +5,16 @@ import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
-# a note on scopes
+
+###
+# error and exit if the command-line arguments can't be assigned
 # moving items to the Bin can be accomplished with:
 #   https://www.googleapis.com/auth/gmail.modify
 # this scope does NOT allow you to do a permanent delete
 # in order to skip the Bin and delete the message permanently, you need:
 #   https://mail.google.com
 # I do not recommend this unless you are 100% sure you need to do this
+###
 try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="the complete email address to search; this must be an email address or 'any', there is no default", default = '')
@@ -28,6 +31,11 @@ except Exception as e:
   print()
   exit()
 
+###
+# any delete should require a search string
+# failing to provide a string would prompt for every email to be deleted
+# deleting all email can be addressed in a different script
+###
 if query == '':
   print()
   print("No query string was provided. This will delete everything in the user's mailbox.")
@@ -37,6 +45,11 @@ if query == '':
   print()
   exit()
 
+###
+# any delete should require a userid
+# this should be a single email address or a keyword of 'any'
+# 'any' will cause the script to pull an entire user list using the directory API
+###
 if user_id == '':
   print()
   print("No user was provided; this script requires a user")
@@ -44,37 +57,61 @@ if user_id == '':
   print()
   exit()
 
+###
+# retrieve the oauth2 creds and create the SACreds object
+# this doesn't change throughout the script so only do it once
+###
+sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
+
+###
+# connect to Google with the existing SACreds object
+# the Directory API can use the address from the config file
+# walk the Directory API to get all email addresses associted with the domain
+# store those addresses in the domain_users list
+###
 if user_id == 'any':
   try:
-    domain_users = []
-    sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
+    user_id_list = []
     delegated = sa_creds.create_delegated(api_info.google_email)
     http_auth = delegated.authorize(httplib2.Http())
     service = discovery.build('admin', 'directory_v1', http=http_auth)
     results = service.users().list(domain=api_info.google_domain, orderBy='email').execute()
+    ###
+    # walk the directory and store the users
+    # this is less efficient for small numbers of users but more efficient for thousands of users
+    # nextPageToken is a string returned by Google that lets them paginate results
+    # nextPageToken will not exist on the last page of results
+    ###
     if 'users' in results:
-      domain_users.extend(results.get('users', []))
+      for a_user in results.get('users', []):
+        user_id_list.append(a_user['primaryEmail'])
     while 'nextPageToken' in results:
       time.sleep(0.25)
       page_token = results['nextPageToken']
       results = service.users().list(domain=api_info.google_domain, orderBy='email', pageToken=page_token).execute()
-      domain_users.extend(results.get('users', []))
+      for a_user in results.get('users', []):
+        user_id_list.append(a_user['primaryEmail'])
   except Exception as e:
     print("Error connecting to Google and retrieving user list")
     print(repr(e))
     print("This is a fatal error, exiting")
     exit()
-  user_id_list = []
-  for a_domain_user in domain_users:
-    user_id_list.append(a_domain_user['primaryEmail'])
+
+###
+# no need to walk the API since a user ID is provided
+# add it to the user_id_list list so there's normalisation in later code
+###
 else:
   user_id_list = [user_id]
 
 for current_user_id in user_id_list:
   print()
   print("searching mail for: " + current_user_id)
+  ###
+  # a message is associated with an email address
+  # that email address must be the one to delegate access to the token
+  ###
   try:
-    sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
     delegated = sa_creds.create_delegated(current_user_id)
     http_auth = delegated.authorize(httplib2.Http())
     service = discovery.build('gmail', 'v1', http=http_auth)
@@ -86,6 +123,10 @@ for current_user_id in user_id_list:
     print()
     exit()
 
+  ###
+  # for each user, get all messages that match the query string
+  # this stores all matching messages in a
+  ##
   try:
     messages = []
     results = service.users().messages().list(userId=current_user_id, q=query).execute()
@@ -95,7 +136,7 @@ for current_user_id in user_id_list:
       time.sleep(0.25)
       page_token = results['nextPageToken']
       results = service.users().messages().list(userId=current_user_id, q=query, pageToken=page_token).execute()
-      message.extend(results.get('messages', []))
+      messages.extend(results.get('messages', []))
   except Exception as e:
     print()
     print("Error: could connect to Google but couldn't retrieve the list of message IDs")
@@ -104,6 +145,11 @@ for current_user_id in user_id_list:
     print()
     exit()
 
+  ###
+  # display the headers and a delete prompt for each matching message
+  # the prompt should help address concerns about deleting valid messages
+  # note that unless skip-bin is provided, this moves the message to the Bin, allowing for recovery
+  ###
   try:
     print()
     interesting_headers = [ "To", "From", "Subject", "Message-ID", "Cc", "Bcc"]
