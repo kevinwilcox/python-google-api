@@ -1,3 +1,13 @@
+###
+# necessary scopes
+# moving items to the Bin can be accomplished with:
+#   https://www.googleapis.com/auth/gmail.modify
+# this scope does NOT allow you to do a permanent delete
+# in order to skip the Bin and delete the message permanently, you need:
+#   https://mail.google.com
+# I do not recommend this unless you are 100% sure you need to do this
+###
+
 import time
 import api_info
 import argparse
@@ -5,15 +15,10 @@ import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
-
 ###
 # error and exit if the command-line arguments can't be assigned
-# moving items to the Bin can be accomplished with:
-#   https://www.googleapis.com/auth/gmail.modify
-# this scope does NOT allow you to do a permanent delete
-# in order to skip the Bin and delete the message permanently, you need:
-#   https://mail.google.com
-# I do not recommend this unless you are 100% sure you need to do this
+# the default action is to Bin messages (so users can retrieve them if necessary)
+# --skip-bin will perform the equivalent of the user deleting from the folder *then deleting from Trash*
 ###
 try:
   parser = argparse.ArgumentParser()

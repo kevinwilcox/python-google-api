@@ -4,6 +4,9 @@ import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
+###
+# if arguments can't be parsed then there is no use to continue
+###
 try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="an optional email address to search for more info", default = '')
@@ -17,7 +20,6 @@ try:
   max_results         = args.count
   show_deleted        = args.deleted
   super_admin_only    = args.superadmin
-
 except Exception as e:
   print("Error: couldn't determine whether to retrieve deleted users")
   print(repr(e))

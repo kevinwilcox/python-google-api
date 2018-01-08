@@ -4,6 +4,9 @@ import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
+###
+# if arguments can't be parsed then there is no use to continue
+###
 try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="the complete email address to search; there is no default as this is required", default = '')
@@ -11,7 +14,6 @@ try:
   args = parser.parse_args()
   user_id  = args.user
   query   = args.query
-
 except Exception as e:
   print("Error: couldn't assign the provided values")
   print(repr(e))
@@ -19,11 +21,14 @@ except Exception as e:
   print()
   exit()
 
+###
+# --user is not optional at this point
+###
 if user_id == '':
   print()
-  print("No user was provided; this is okay but you really should supply a user")
-  print("Because some environments have tens of thousands of users, this is not yet optional")
-  print("Please run again with --user <email_address>")
+  print("No user was provided.")
+  print("Please re-run with --user <>, where the username is the user's complete email address")
+  print("Exiting...")
   print()
   exit()
 
@@ -40,7 +45,7 @@ if query == '':
   else:
     print()
     query = input("Please provide the query string to use: ")
-    
+
 try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
   delegated = sa_creds.create_delegated(user_id)

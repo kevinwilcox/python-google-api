@@ -1,12 +1,27 @@
+###
+# necessary scopes
+# this will work with any of the following:
+#   https://www.googleapis.com/auth/gmail.readonly
+#   https://www.googleapis.com/auth/gmail.modify
+#   https://mail.google.com/
+#
+# I recommend the gmail.readonly scope if not using delete_message or get_snippet_from_search
+###
+
 import api_info
 import argparse
 import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
+###
+# if arguments can't be parsed then there is no use to continue
+# --user should support "all" but that means using the Directory API to get all users
+#   then iterating through that list, potentially problematic for larger environments
+###
 try:
   parser = argparse.ArgumentParser()
-  parser.add_argument('--user', help="the complete email address to search; the default is all", default = 'all')
+  parser.add_argument('--user', help="the complete email address to search; this is a required field", default = '')
   args = parser.parse_args()
   user_id = args.user
 except Exception as e:
@@ -15,6 +30,21 @@ except Exception as e:
   print("This is a fatal error, exiting")
   exit()
 
+###
+# --user is not optional at this point
+###
+if user_id == '':
+  print()
+  print("No user was provided.")
+  print("Please re-run with --user <>, where the username is the user's complete email address")
+  print("Exiting...")
+  print()
+  exit()
+
+###
+# attempt to connect to Google using the oauth2 token and provided email for delegation
+# note the reports API doesn't need to act on behalf of any particuler user
+###
 try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
   delegated = sa_creds.create_delegated(user_id)

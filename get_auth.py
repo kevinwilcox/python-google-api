@@ -1,7 +1,8 @@
-### necessary scopes
+###
+# necessary scopes
 # all functionality can be achieved with
 #   https://www.googleapis.com/auth/admin.reports.audit.readonly
-#
+####
 
 import time
 import api_info
@@ -12,10 +13,14 @@ from datetime import datetime, timezone
 from oauth2client.service_account import ServiceAccountCredentials
 
 ###
-# Google expects timestamps to be formatted as:
+# Google expects timestamps to be formatted as either:
+#
 # 2000-01-31T00:00:00Z
+#
 # or
+#
 # 2000-01-31T00:00:00+00:00
+#
 # the time doesn't need to be in UTC but the 'Z' or offset must be present
 # this function converts a Unix timestamp (seconds since epoch) into ISO format
 # note this isn't used for user-provided times, it is only used if no start or end time is provided
@@ -49,7 +54,6 @@ try:
   time_start  = args.start
   time_end    = args.end
   max_results = args.count
-
 except Exception as e:
   print("Error: couldn't assign a value to user_id")
   print(repr(e))
