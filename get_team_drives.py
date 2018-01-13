@@ -1,12 +1,8 @@
 ###
 # The Audit API doesn't correctly log the creation of new Team Drives
-# If a new TD is created with no additional immediate activity then a "create" is logged
-# If a new TD is created with someone added to it then no "create" is logged
-#   -- however, a team_drive_membership_change is logged
-# This script is not named "get_new_team_drives" because of that ambiguity
-# To detect new TDs, maintain a list of TDs in your SIEM and then for each
-#   "create" or "team_drive_membership_change" activity, query if the name
-#   and owner exist; if not, add it as a new TD
+# Instead, this uses the "Drive" API to look for TDs created inside
+#   of a given time window
+# The default time window begins with the first TD created and ends with now
 ###
 
 import time
@@ -16,30 +12,6 @@ import httplib2
 from apiclient import discovery
 from datetime import datetime, timezone
 from oauth2client.service_account import ServiceAccountCredentials
-
-###
-# Google expects timestamps to be formatted as:
-# 2000-01-31T00:00:00Z
-# or
-# 2000-01-31T00:00:00+00:00
-# the time doesn't need to be in UTC but the 'Z' or offset must be present
-# this function converts a Unix timestamp (seconds since epoch) into ISO format
-# note this isn't used for user-provided times, it is only used if no start or end time is provided
-###
-def convert_to_ISO(unixTime):
-    temp_ts = datetime.fromtimestamp(unixTime, tz = timezone.utc)
-    replaced_ts = temp_ts.replace(microsecond=0)
-    return replaced_ts.isoformat()
-
-###
-# by default, the script will pull all drive logs for the last week
-# this sets the timestamps for (now) and (now - 1 week)
-###
-ts_now = time.time()
-start_timestamp_unix = ts_now - (60 * 60 * 24 * 7)
-start_timestamp_iso = convert_to_ISO(start_timestamp_unix)
-end_timestamp_unix = ts_now
-end_timestamp_iso = convert_to_ISO(end_timestamp_unix)
 
 ###
 # if arguments can't be parsed then there is no use to continue
@@ -64,7 +36,9 @@ except Exception as e:
 
 ###
 # attempt to connect to Google using the oauth2 token and provided email for delegation
-# note the reports API doesn't need to act on behalf of any particuler user
+# note the reports API doesn't need to act on behalf of any particuler user but
+#   does need to be a superadmin account (or account with full Drive permissions
+#   in the Google Admin configuration)
 ###
 try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
@@ -78,7 +52,7 @@ except Exception as e:
   exit()
 
 ###
-# retrieve all drive "team_drive_membership_change" activities, append them to the activities list
+# retrieve all Team Drives within the time window
 ###
 try:
   c_time = ''
@@ -89,7 +63,6 @@ try:
   if time_end != '':
     c_time += "createdTime <= '" + time_end + "'"
   results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)').execute()
-    #results = service.teamdrives().list(useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)').execute()
   if 'teamDrives' in results:
     team_drives = []
     team_drives.extend(results.get('teamDrives', []))
