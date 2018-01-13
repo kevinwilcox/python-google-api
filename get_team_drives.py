@@ -62,14 +62,14 @@ try:
       c_time += " AND "
   if time_end != '':
     c_time += "createdTime <= '" + time_end + "'"
-  results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)').execute()
+  results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)', pageSize=max_results).execute()
   if 'teamDrives' in results:
     team_drives = []
     team_drives.extend(results.get('teamDrives', []))
   while 'nextPageToken' in results:
     time.sleep(0.25)
     page_token = results['nextPageToken']
-    results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)', pageToken=page_token).execute()
+    results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)', pageToken=page_token, pageSize=max_results).execute()
     team_drives.extend(results.get('teamDrives', []))
 except Exception as e:
   print("Error: connected to Google but couldn't retrieve team drives")
