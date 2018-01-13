@@ -32,40 +32,6 @@ def convert_to_ISO(unixTime):
     return replaced_ts.isoformat()
 
 ###
-# each "drive" activity will have:
-#    time
-#    email address
-#    the user performing the change
-#    the type of change
-# if the item was retrieved as a membership change then them
-#   "create" time is actually when someone was added to the TD
-# this means the time isn't 100% accurate but it is within a few minutes
-###
-def process_drive_logs(activities):
-  try:
-    possible_new_drives = []
-    for activity in activities:
-      keep_td = True
-      td_owner = activity['actor']['email']
-      td_create_time = activity['id']['time']
-      for attribute in activity['events'][0]['parameters']:
-        if attribute['name'] == 'doc_title' or attribute['name'] == 'owner':
-          td_name = attribute['value']
-        if attribute['name'] == 'primary_event':
-          keep_td = attribute['boolValue']
-        if attribute['name'] == 'owner_is_team_drive':
-          keep_td = attribute['boolValue']
-      if keep_td == True:
-        print()
-        print("owner: " + td_owner)
-        print("created: " + td_create_time)
-        print("td_name: " + td_name)
-  except Exception as e:
-    print("Error: couldn't iterate through the activity list")
-    print(repr(e))
-  return
-
-###
 # by default, the script will pull all drive logs for the last week
 # this sets the timestamps for (now) and (now - 1 week)
 ###
@@ -80,15 +46,15 @@ end_timestamp_iso = convert_to_ISO(end_timestamp_unix)
 ###
 try:
   parser = argparse.ArgumentParser()
-  parser.add_argument('--user', help="the complete email address to search; the default is all", default = 'all')
-  parser.add_argument('--start', help="a starting time for the search; format must be YYYY-MM-DDTHH:mm:ssTZOFFSET; the default start is one week ago", default = start_timestamp_iso)
-  parser.add_argument('--end', help="an end time for the search; format must be YYYY-MM-DDTHH:mm:ssTZOFFSET; the default end is now", default = end_timestamp_iso)
-  parser.add_argument('--count', help="the number of results to return per request; the script will request until all authentication actions have been retreived but will do so in 'count'-sized chunks; the default is 1000", default = 1000)
+  parser.add_argument('--alldrives', help="list all drives in the domain; this only needs to be added, it doesn't need 'true' or 'false'; default is false", action='store_true')
+  parser.add_argument('--after', help="only search for Team Drives created after <time>; format must be YYYY-MM-DDTHH:mm:ssTZOFFSET; the default is 'as far back as Google has data'", default = '')
+  parser.add_argument('--before', help="only search for Team Drives created before <time>; format must be YYYY-MM-DDTHH:mm:ssTZOFFSET; the default upper bound is now", default = '')
+  parser.add_argument('--count', help="the number of results to return per request; the script will request until all Team Drives have been retreived but will do so in 'count'-sized chunks; the default (and max) is 100", default = 100)
   args        = parser.parse_args()
-  user_id     = args.user
-  time_start  = args.start
-  time_end    = args.end
+  time_start  = args.after
+  time_end    = args.before
   max_results = args.count
+  all_drives  = args.alldrives
 
 except Exception as e:
   print("Error: couldn't assign a value to user_id")
@@ -104,29 +70,9 @@ try:
   sa_creds = ServiceAccountCredentials.from_json_keyfile_name(api_info.google_cfile, api_info.google_scope)
   delegated = sa_creds.create_delegated(api_info.google_email)
   http_auth = delegated.authorize(httplib2.Http())
-  service = discovery.build('admin', 'reports_v1', http=http_auth)
+  service = discovery.build('drive', 'v3', http=http_auth)
 except Exception as e:
   print("Error: couldn't connect to Google with the provided information")
-  print(repr(e))
-  print("This is a fatal error, exiting")
-  exit()
-
-activities = []
-
-###
-# retrieve all drive "create" activities, store them in an activities list
-###
-try:
-  results = service.activities().list(userKey=user_id, applicationName='drive', filters="doc_type==team_drive", eventName="create", startTime = time_start, endTime = time_end, maxResults = max_results).execute()
-  if 'items' in results:
-    activities.extend(results.get('items', []))
-  while 'nextPageToken' in results:
-    time.sleep(0.25)
-    page_token = results['nextPageToken']
-    results = service.activities().list(userKey=user_id, applicationName='drive', filters="doc_type==team_drive", eventName="create", startTime = time_start, endTime = time_end, maxResults = max_results, pageToken=page_token).execute()
-    activities.extend(results.get('items', []))
-except Exception as e:
-  print("Error: connected to Google but couldn't retrieve 'create' activities")
   print(repr(e))
   print("This is a fatal error, exiting")
   exit()
@@ -135,24 +81,37 @@ except Exception as e:
 # retrieve all drive "team_drive_membership_change" activities, append them to the activities list
 ###
 try:
-  results = service.activities().list(userKey=user_id, applicationName='drive', filters="doc_type==team_drive,membership_change_type==add_to_team_drive", eventName="team_drive_membership_change", startTime = time_start, endTime = time_end, maxResults = max_results).execute()
-  if 'items' in results:
-    activities.extend(results.get('items', []))
+  c_time = ''
+  if time_start != '':
+    c_time += "createdTime >= '" + time_start + "'"
+    if time_end != '':
+      c_time += " AND "
+  if time_end != '':
+    c_time += "createdTime <= '" + time_end + "'"
+  results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)').execute()
+    #results = service.teamdrives().list(useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)').execute()
+  if 'teamDrives' in results:
+    team_drives = []
+    team_drives.extend(results.get('teamDrives', []))
   while 'nextPageToken' in results:
     time.sleep(0.25)
     page_token = results['nextPageToken']
-    results = service.activities().list(userKey=user_id, applicationName='drive', filters="doc_type==team_drive,membership_change_type==add_to_team_drive", eventName="team_drive_membership_change", startTime = time_start, endTime = time_end, maxResults = max_results, pageToken=page_token).execute()
-    activities.extend(results.get('items', []))
+    results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)', pageToken=page_token).execute()
+    team_drives.extend(results.get('teamDrives', []))
+except Exception as e:
+  print("Error: connected to Google but couldn't retrieve team drives")
+  print(repr(e))
+  print("This is a fatal error, exiting")
+  exit()
+
+try:
+  for a_drive in team_drives:
+    print(a_drive)
 except Exception as e:
   print("Error: connected to Google but couldn't retrieve 'add_to_team_drive' activities")
   print(repr(e))
   print("This is a fatal error, exiting")
   exit()
-
-###
-# this parses all activities at one time, preventing bouncing between querying Google and processing
-###
-process_drive_logs(activities)
 
 print()
 exit()
