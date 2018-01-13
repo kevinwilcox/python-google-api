@@ -3,6 +3,10 @@
 # Instead, this uses the "Drive" API to look for TDs created inside
 #   of a given time window
 # The default time window begins with the first TD created and ends with now
+#
+# This script needs ONE of the following scopes:
+# https://www.googleapis.com/auth/drive
+# https://www.googleapis.com/auth/drive.readonly
 ###
 
 import time
