@@ -70,6 +70,7 @@ try:
   for a_user in domain_users:
     print()
     print("User record")
+    print("User's id: " + a_user['id'])
     print("User's name: " + a_user['name']['fullName'])
     print("User is suspended: " + str(a_user['suspended']))
     print("User email address: " + a_user['primaryEmail'])

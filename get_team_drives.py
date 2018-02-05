@@ -22,7 +22,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 ###
 try:
   parser = argparse.ArgumentParser()
-  parser.add_argument('--alldrives', help="list all drives in the domain; this only needs to be added, it doesn't need 'true' or 'false'; default is false", action='store_true')
   parser.add_argument('--after', help="only search for Team Drives created after <time>; format must be YYYY-MM-DDTHH:mm:ssTZOFFSET; the default is 'as far back as Google has data'", default = '')
   parser.add_argument('--before', help="only search for Team Drives created before <time>; format must be YYYY-MM-DDTHH:mm:ssTZOFFSET; the default upper bound is now", default = '')
   parser.add_argument('--count', help="the number of results to return per request; the script will request until all Team Drives have been retreived but will do so in 'count'-sized chunks; the default (and max) is 100", default = 100)
@@ -30,7 +29,6 @@ try:
   time_start  = args.after
   time_end    = args.before
   max_results = args.count
-  all_drives  = args.alldrives
 
 except Exception as e:
   print("Error: couldn't assign a value to user_id")
@@ -66,14 +64,14 @@ try:
       c_time += " AND "
   if time_end != '':
     c_time += "createdTime <= '" + time_end + "'"
-  results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)', pageSize=max_results).execute()
+  results = service.teamdrives().list(q=c_time, useDomainAdminAccess=True, fields='nextPageToken, teamDrives(id, name, createdTime)', pageSize=max_results).execute()
   if 'teamDrives' in results:
     team_drives = []
     team_drives.extend(results.get('teamDrives', []))
   while 'nextPageToken' in results:
     time.sleep(0.25)
     page_token = results['nextPageToken']
-    results = service.teamdrives().list(q=c_time, useDomainAdminAccess=all_drives, fields='nextPageToken, teamDrives(id, name, createdTime)', pageToken=page_token, pageSize=max_results).execute()
+    results = service.teamdrives().list(q=c_time, useDomainAdminAccess=True, fields='nextPageToken, teamDrives(id, name, createdTime)', pageToken=page_token, pageSize=max_results).execute()
     team_drives.extend(results.get('teamDrives', []))
 except Exception as e:
   print("Error: connected to Google but couldn't retrieve team drives")
