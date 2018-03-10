@@ -25,10 +25,12 @@ try:
   parser.add_argument('--user', help="the complete email address to search; this must be an email address or 'any', there is no default", default = '')
   parser.add_argument('--query', help="the string to search; for examples, see https://support.google.com/mail/answer/7190?hl=en", default = '')
   parser.add_argument('--skip-bin', help="the default action is to move to Bin; specify this flag to skip the Bin", dest='skip_bin', action='store_true')
-  args      = parser.parse_args()
-  user_id    = args.user
-  query     = args.query
-  skip_bin  = args.skip_bin
+  parser.add_argument('--no-confirm', help="WARNING DANGER WARNING this option skips prompting for delete confirmation", dest='no_confirm', action='store_true')
+  args          = parser.parse_args()
+  user_id       = args.user
+  query         = args.query
+  skip_bin      = args.skip_bin
+  skip_confirm  = args.no_confirm
 except Exception as e:
   print("Error: couldn't assign the provided values")
   print(repr(e))
@@ -162,6 +164,8 @@ for current_user_id in user_id_list:
     for a_message in messages:
       mid = a_message['id']
       verify = ''
+      if no_confirm == True:
+        verify = 'y'
       try:
         msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
         for a_header in msg_object['payload']['headers']:
