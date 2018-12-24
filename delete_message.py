@@ -164,7 +164,7 @@ for current_user_id in user_id_list:
     for a_message in messages:
       mid = a_message['id']
       verify = ''
-      if no_confirm == True:
+      if skip_confirm == True:
         verify = 'y'
       try:
         msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
