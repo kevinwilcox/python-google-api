@@ -228,7 +228,7 @@ for current_user_id in user_id_list:
           print()
           print("You chose yes, labels will be changed to %s" % labels_to_add)
           try:
-            msg_labels = { 'removeLabelIds':[labels_to_remove], 'addLabelIds':[labels_to_add] }
+            msg_labels = { 'removeLabelIds':labels_to_remove.split(","), 'addLabelIds':labels_to_add.split(",") }
             modified_msg = service.users().messages().modify(userId=current_user_id, id=mid, body=msg_labels).execute()
             print()
             print("Modify request sent, continuing")
