@@ -14,22 +14,77 @@ import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
+acceptable_verify_resp = ['y', 'n']
+
 ###
 # error and exit if the command-line arguments can't be assigned
-# --skip-confirm will move any matching messages to the user's SPAM
-#   folder without any type of confirmation
+# --skip-confirm will re-label messages without any confirmation
+#   this is a fairly dangerous thing to do so...you're warned
 ###
 try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="the complete email address to search; this must be an email address or 'any', there is no default", default = '')
   parser.add_argument('--query', help="the string to search; for examples, see https://support.google.com/mail/answer/7190?hl=en", default = '')
   parser.add_argument('--no-confirm', help="WARNING DANGER WARNING this option skips prompting for label confirmation", dest='no_confirm', action='store_true')
-  args          = parser.parse_args()
-  user_id       = args.user
-  query         = args.query
-  skip_confirm  = args.no_confirm
+  parser.add_argument('--remove', help="""the labels to remove, separated by a comma: --remove "INBOX,FOO,FOO2", the default is INBOX""", dest='to_remove', default = 'INBOX')
+  parser.add_argument('--add', help="""the labels to add, separated by a comma: --add "SPAM,READ,FOO", the default is SPAM""", dest='to_add', default="SPAM")
+  args              = parser.parse_args()
+  user_id           = args.user
+  query             = args.query
+  skip_confirm      = args.no_confirm
+  labels_to_add     = args.to_add
+  labels_to_remove  = args.to_remove
+
 except Exception as e:
   print("Error: couldn't assign the provided values")
+  print(repr(e))
+  print("This is a fatal error, exiting")
+  print()
+  exit()
+
+try:
+  verify = ''
+  while verify not in acceptable_verify_resp:
+    print()
+    print("You have chosen to remove the following labels:")
+    print()
+    for a_label in labels_to_remove.split(','):
+      print(a_label)
+    print()
+    verify = input("Are these the correct labels to remove, 'y' or 'n'? ").lower()
+  if verify == 'n':
+    print()
+    print("Please re-run this script with the labels you wish to remove")
+    print()
+    exit()
+
+except Exception as e:
+  print()
+  print("Error: could not determine labels to remove")
+  print(repr(e))
+  print("This is a fatal error, exiting")
+  print()
+  exit()
+
+try:
+  verify = ''
+  while verify not in acceptable_verify_resp:
+    print()
+    print("You have chosen to add the following labels:")
+    print()
+    for a_label in labels_to_add.split(','):
+      print(a_label)
+    print()
+    verify = input("Are these the correct labels to add, 'y' or 'n'? ").lower()
+  if verify == 'n':
+    print()
+    print("Please re-run this script with the labels you wish to add")
+    print()
+    exit()
+
+except Exception as e:
+  print()
+  print("Error: could not determine labels to add")
   print(repr(e))
   print("This is a fatal error, exiting")
   print()
@@ -156,7 +211,6 @@ for current_user_id in user_id_list:
   try:
     print()
     interesting_headers = [ "To", "From", "Subject", "Message-ID", "Cc", "Bcc"]
-    acceptable_verify_resp = ['y', 'n']
     for a_message in messages:
       mid = a_message['id']
       verify = ''
@@ -169,24 +223,29 @@ for current_user_id in user_id_list:
             print(a_header['name'] + " is: " + a_header['value'])
         print()
         while verify not in acceptable_verify_resp:
-          verify = input("Do you want to move this message to SPAM, 'y' or 'n'? ").lower()
+          verify = input("Do you want to move this message from %s to %s, 'y' or 'n'? " % (labels_to_remove, labels_to_add)).lower()
         if verify == 'y':
           print()
-          print("You chose yes, message will be moved to SPAM")
+          print("You chose yes, labels will be changed to %s" % labels_to_add)
           try:
-            msg_labels = { 'removeLabelIds':['INBOX'], 'addLabelIds':['SPAM'] }
+            msg_labels = { 'removeLabelIds':[labels_to_remove], 'addLabelIds':[labels_to_add] }
             modified_msg = service.users().messages().modify(userId=current_user_id, id=mid, body=msg_labels).execute()
+            print()
             print("Modify request sent, continuing")
             print()
           except Exception as e:
+            print()
             print("Error modifying this message")
             print("Error message: " + repr(e))
             print("This is not a fatal error, continuing")
+            print()
         else:
           print()
           print("You chose no, skipping this message")
+          print()
         print()
       except Exception as e:
+        print()
         print("Error: couldn't retrieve the message with ID: " + mid)
         print("This is NOT a fatal error, continuing with next message")
         print()
