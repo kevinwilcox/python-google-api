@@ -8,12 +8,23 @@
 # I do not recommend this unless you are 100% sure you need to do this
 ###
 
+import json
+
 import time
+from datetime import datetime, timezone
+
 import api_info
 import argparse
 import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
+
+###
+# what time did the script start?
+# this is used at the end of the script to write out the list of users, message IDs and delete types
+# I'm putting it at the start of the script to more accurately get the time when the script was executed
+###
+script_ts = datetime.fromtimestamp(time.time(), tz = timezone.utc).replace(microsecond=0).isoformat()
 
 ###
 # error and exit if the command-line arguments can't be assigned
@@ -159,8 +170,9 @@ for current_user_id in user_id_list:
   ###
   try:
     print()
-    interesting_headers = [ "To", "From", "Subject", "Message-ID", "Cc", "Bcc"]
+    deleted_messages = []
     acceptable_verify_resp = ['y', 'n']
+    interesting_headers = [ "To", "From", "Subject", "Message-ID", "Cc", "Bcc"]
     for a_message in messages:
       mid = a_message['id']
       verify = ''
@@ -180,8 +192,11 @@ for current_user_id in user_id_list:
           try:
             if skip_bin == True:
               deleted = service.users().messages().delete(userId=current_user_id, id=mid).execute()
+              c_action = "true_delete"
             else:
               deleted = service.users().messages().trash(userId=current_user_id, id=mid).execute()
+              c_action = "bin_delete"
+            deleted_messages.append({"action":c_action, "user":current_user_id, "id":mid, "query":query})
             print("Delete request sent, continuing")
             print()
           except Exception as e:
@@ -205,5 +220,16 @@ for current_user_id in user_id_list:
   print("No additional messages match for " + current_user_id)
   print("Continuing to next user")
   print()
-print("All users searched, exiting")
+print("All users searched, writing deleted message IDs to file")
+if len(deleted_messages) > 0:
+  print()
+  deleted_fh = open("%s.json" % script_ts, 'w')
+  deleted_fh.write(json.dumps(deleted_messages))
+  deleted_fh.close()
+  print("done writing deletes, exiting")
+  print()
+else:
+  print()
+  print("no messages deleted, no file created")
+  print()
 exit()

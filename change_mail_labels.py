@@ -7,13 +7,27 @@
 # I do not recommend this unless you are 100% sure you need to do this
 ###
 
+import json
+
 import time
+from datetime import datetime, timezone
+
 import api_info
 import argparse
 import httplib2
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 
+###
+# what time did the script start?
+# this is used at the end of the script to write out the list of users, message IDs and delete types
+# I'm putting it at the start of the script to more accurately get the time when the script was executed
+###
+script_ts = datetime.fromtimestamp(time.time(), tz = timezone.utc).replace(microsecond=0).isoformat()
+
+###
+# probably a bit early to set this list...
+###
 acceptable_verify_resp = ['y', 'n']
 
 ###
@@ -210,6 +224,7 @@ for current_user_id in user_id_list:
   ###
   try:
     print()
+    modified_messages = []
     interesting_headers = [ "To", "From", "Subject", "Message-ID", "Cc", "Bcc"]
     for a_message in messages:
       mid = a_message['id']
@@ -230,6 +245,7 @@ for current_user_id in user_id_list:
           try:
             msg_labels = { 'removeLabelIds':labels_to_remove.split(","), 'addLabelIds':labels_to_add.split(",") }
             modified_msg = service.users().messages().modify(userId=current_user_id, id=mid, body=msg_labels).execute()
+            modified_messages.append({"action":"labels", "user":current_user_id, "id":mid, "query":query, "removed":labels_to_remove, "added":labels_to_add})
             print()
             print("Modify request sent, continuing")
             print()
@@ -258,5 +274,16 @@ for current_user_id in user_id_list:
   print("No additional messages match for " + current_user_id)
   print("Continuing to next user")
   print()
-print("All users searched, exiting")
+print("All users searched, writing changes to disk")
+if len(modified_messages) > 0:
+  print()
+  modified_fh = open("%s.json" % script_ts, 'w')
+  modified_fh.write(json.dumps(modified_messages))
+  modified_fh.close()
+  print("done writing modifies, exiting")
+  print()
+else:
+  print()
+  print("no messages modified, no file created")
+  print()
 exit()
