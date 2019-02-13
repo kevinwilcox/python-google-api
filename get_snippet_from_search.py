@@ -203,19 +203,12 @@ else:
 # the idea is to have <x> number of accounts fairly evenly divided into <y> threads
 # that <y> threads value is determined by "thread_count"
 # we have to make sure there aren't more threads than users
-#   reduce thread_count by 10% until thread_count is ten or it's less than the user count
-#   if thread_count gets to 10 and it's still more than the number of users,
-#     just set thread_count to one as performance won't be visibly impacted by threading
+#   if thread_count is more than the number of users, set thread_count to total_users
 ###
 total_users = len(user_id_list)
-while total_users < thread_count and thread_count > 1:
-    print("number of threads too large; currently %s, reducing by 10 percent" % thread_count)
-    to_subtract = thread_count // 10
-    if to_subtract == 0:
-      thread_count = 1
-    else:
-      thread_count = thread_count - to_subtract
-print("new number of threads: %s" % thread_count)
+if total_users < thread_count:
+  print("number of threads too large; currently %s, setting to %s" % (thread_count, total_users))
+  thread_count = total_users
 
 search_threads = []
 for i in range(total_users):
