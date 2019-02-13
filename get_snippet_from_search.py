@@ -1,8 +1,89 @@
 import api_info
 import argparse
 import httplib2
+import subprocess
+from threading import Thread
 from apiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
+
+def search_mail(sa_creds, current_user_id, query, results_count):
+  print()
+  print("searching mail for: " + current_user_id)
+  ###
+  # delegate as the current user id
+  # in the Google logs, this looks like "<user> delegated access to token <token> for <scopes>"
+  ###
+  try:
+    delegated = sa_creds.create_delegated(current_user_id)
+    http_auth = delegated.authorize(httplib2.Http())
+    service = discovery.build('gmail', 'v1', http=http_auth)
+  except Exception as e:
+    print()
+    print("Error: couldn't connect to Google")
+    print(repr(e))
+    print("This is a fatal error, exiting")
+    print()
+    exit()
+
+  ###
+  # delegation was successful, perform the search as the current user
+  # this returns message IDs, not messages, so it *should* be safe to store these in RAM
+  # I have not tested this with searches with hundreds of thousands (or millions) of results...
+  #   -- if anyone with large domains wants to test this and let me know how it performs, I'd be awfully grateful!
+  ###
+  try:
+    messages = []
+    results = service.users().messages().list(userId=current_user_id, q=query, maxResults=results_count).execute()
+    if 'messages' in results:
+      messages.extend(results.get('messages', []))
+    while 'nextPageToken' in results:
+      time.sleep(0.25)
+      page_token = results['nextPageToken']
+      results = service.users().messages().list(userId=current_user_id, q=query, pageToken=page_token, maxResults=results_count).execute()
+      messages.extend(results.gets('messages', []))
+  except Exception as e:
+    print()
+    print("Error: could connect to Google but couldn't retrieve the list of message IDs")
+    print(repr(e))
+    print("This is a fatal error, exiting")
+    print()
+    exit()
+
+  ###
+  # iterate through the message IDs for the current user and retreive/display the corresponding message
+  # note the headers displayed are arbitrary, long-term I want to add a --headers option and the SPF/DKIM/DMARC posture
+  # as stated above, this does not store the actual message contents in RAM
+  # if the message does not have ASCII content, the snippet field may not be populated
+  ###
+  try:
+    print()
+    for a_message in messages:
+      mid = a_message['id']
+      try:
+        msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
+        for a_header in msg_object['payload']['headers']:
+          if a_header['name'] == "To":
+            print("Recipient is: " + a_header['value'])
+          elif a_header['name'] == "From":
+            print("Sender is: " + a_header['value'])
+          elif a_header['name'] == "Subject":
+            print("Subject is: " + a_header['value'])
+          elif a_header['name'] == "Message-ID":
+            print("Message ID is: " + a_header['value'])
+        print("Snippet from email: ")
+        print(msg_object['snippet'].encode('utf-8', 'ignore'))
+        print()
+      except Exception as e:
+        print("Error: couldn't retrieve the message with ID: " + mid)
+        print("This is NOT a fatal error, continuing with next message")
+        print()
+        pass
+  except Exception as e:
+    print()
+    print("Error: couldn't iterate through the message ID list")
+    print(repr(e))
+    print()
+  return
 
 ###
 # if arguments can't be parsed then there is no use to continue
@@ -12,10 +93,14 @@ try:
   parser.add_argument('--user', help="the complete email address to search; this must be an email address or 'any', there is no default", default = '')
   parser.add_argument('--list', help="the file of email addresses to search, one per line; this is empty by default and not used if --user is set", default = '')
   parser.add_argument('--query', help="the string to search; for examples, see https://support.google.com/mail/answer/7190?hl=en", default = '')
-  args      = parser.parse_args()
-  user_id   = args.user
-  u_file    = args.list
-  query     = args.query
+  parser.add_argument('--threads', help="the number of threads to spawn for search; the default is 10", default = 10)
+  parser.add_argument('--results', help="the number of results to return per API request; the default (and max) is 500", default = 500)
+  args          = parser.parse_args()
+  user_id       = args.user
+  u_file        = args.list
+  query         = args.query
+  thread_count  = int(args.threads)
+  results_count = int(args.results)
 except Exception as e:
   print("Error: couldn't assign the provided values")
   print(repr(e))
@@ -114,88 +199,60 @@ else:
   user_id_list = [user_id]
 
 ###
-# iterate through the users list, searching mail as it goes
-# currently, the script displays mail as it moves from user to user
-# for simple searches this is my desired behaviour because:
-#   it allows to stop the search if the query looks too broad
-#   it doesn't store the content of all of the messages in RAM
+# here's where the arithmetic operations start getting...interesting
+# the idea is to have <x> number of accounts fairly evenly divided into <y> threads
+# that <y> threads value is determined by "thread_count"
+# we have to make sure there aren't more threads than users
+#   reduce thread_count by 10% until thread_count is ten or it's less than the user count
+#   if thread_count gets to 10 and it's still more than the number of users,
+#     just set thread_count to one as performance won't be visibly impacted by threading
 ###
-for current_user_id in user_id_list:
-  print()
-  print("searching mail for: " + current_user_id)
-  ###
-  # delegate as the current user id
-  # in the Google logs, this looks like "<user> delegated access to token <token> for <scopes>"
-  ###
-  try:
-    delegated = sa_creds.create_delegated(current_user_id)
-    http_auth = delegated.authorize(httplib2.Http())
-    service = discovery.build('gmail', 'v1', http=http_auth)
-  except Exception as e:
-    print()
-    print("Error: couldn't connect to Google")
-    print(repr(e))
-    print("This is a fatal error, exiting")
-    print()
-    exit()
+total_users = len(user_id_list)
+while total_users < thread_count and thread_count > 1:
+    print("number of threads too large; currently %s, reducing by 10 percent" % thread_count)
+    to_subtract = thread_count // 10
+    if to_subtract == 0:
+      thread_count = 1
+    else:
+      thread_count = thread_count - to_subtract
+print("new number of threads: %s" % thread_count)
 
+search_threads = []
+for i in range(total_users):
   ###
-  # delegation was successful, perform the search as the current user
-  # this returns message IDs, not messages, so it *should* be safe to store these in RAM
-  # I have not tested this with searches with hundreds of thousands (or millions) of results...
-  #   -- if anyone with large domains wants to test this and let me know how it performs, I'd be awfully grateful!
+  # search_mail, the thread target, is the function to run as a thread
+  # in this case, it is the per-user search
+  # note that all values for the search need to be passed in the args list
   ###
-  try:
-    messages = []
-    results = service.users().messages().list(userId=current_user_id, q=query).execute()
-    if 'messages' in results:
-      messages.extend(results.get('messages', []))
-    while 'nextPageToken' in results:
-      time.sleep(0.25)
-      page_token = results['nextPageToken']
-      results = service.users().messages().list(userId=current_user_id, q=query, pageToken=page_token).execute()
-      messages.extend(results.gets('messages', []))
-  except Exception as e:
-    print()
-    print("Error: could connect to Google but couldn't retrieve the list of message IDs")
-    print(repr(e))
-    print("This is a fatal error, exiting")
-    print()
-    exit()
+  search_threads.append(Thread(target=search_mail, args=(sa_creds, user_id_list[i], query, results_count)))
+###
+# with the threads sorted, we can remove the user_id_list to reclaim memory
+###
+user_id_list = []
 
-  ###
-  # iterate through the message IDs for the current user and retreive/display the corresponding message
-  # note the headers displayed are arbitrary, long-term I want to add a --headers option and the SPF/DKIM/DMARC posture
-  # as stated above, this does not store the actual message contents in RAM
-  # if the message does not have ASCII content, the snippet field may not be populated
-  ###
-  try:
-    print()
-    for a_message in messages:
-      mid = a_message['id']
-      try:
-        msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
-        for a_header in msg_object['payload']['headers']:
-          if a_header['name'] == "To":
-            print("Recipient is: " + a_header['value'])
-          elif a_header['name'] == "From":
-            print("Sender is: " + a_header['value'])
-          elif a_header['name'] == "Subject":
-            print("Subject is: " + a_header['value'])
-          elif a_header['name'] == "Message-ID":
-            print("Message ID is: " + a_header['value'])
-        print("Snippet from email: ")
-        print(msg_object['snippet'].encode('utf-8', 'ignore'))
-        print()
-      except Exception as e:
-        print("Error: couldn't retrieve the message with ID: " + mid)
-        print("This is NOT a fatal error, continuing with next message")
-        print()
-        pass
-  except Exception as e:
-    print()
-    print("Error: couldn't iterate through the message ID list")
-    print(repr(e))
-    print()
-
+###
+# ctr will be so we only deal with thread_count threads at a time
+# join_list is a list of running threads; to join() them means to wait until they finish before starting a new one
+#   this is a sloppy way to do it but it ensures we never have more than <thread_count> threads active
+#   it does mean we may have fewer than that running at any given time, though
+#   I've seen a way of doing this that uses a queue and it looks to be much more efficient
+###
+ctr = 0
+join_list = []
+search_thread_count = len(search_threads)
+for i in range(search_thread_count):
+    # start each thread in the list
+    search_threads[i].start()
+    # once the thread starts, save a way to get back to it
+    join_list.append(i)
+    ctr = ctr + 1
+    if ctr == thread_count or i == (search_thread_count - 1):
+      ###
+      # if we're here then we've reached the maximum number of threads OR we're at the end of the thread list
+      # reset ctr to zero for the next set of threads, wait for any running threads to stop and clear the thread IDs list
+      ###
+      ctr = 0
+      for join_ctr in join_list:
+        search_threads[join_ctr].join()
+      join_list = []
 exit()
