@@ -38,12 +38,14 @@ acceptable_verify_resp = ['y', 'n']
 try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="the complete email address to search; this must be an email address or 'any', there is no default", default = '')
+  parser.add_argument('--list', help="a file with the list of complete email addresses to search, one per line; there is no default", default = '')
   parser.add_argument('--query', help="the string to search; for examples, see https://support.google.com/mail/answer/7190?hl=en", default = '')
   parser.add_argument('--no-confirm', help="WARNING DANGER WARNING this option skips prompting for label confirmation", dest='no_confirm', action='store_true')
   parser.add_argument('--remove', help="""the labels to remove, separated by a comma: --remove "INBOX,FOO,FOO2", the default is INBOX""", dest='to_remove', default = 'INBOX')
   parser.add_argument('--add', help="""the labels to add, separated by a comma: --add "SPAM,READ,FOO", the default is SPAM""", dest='to_add', default="SPAM")
   args              = parser.parse_args()
   user_id           = args.user
+  u_file            = args.list
   query             = args.query
   skip_confirm      = args.no_confirm
   labels_to_add     = args.to_add
@@ -121,7 +123,7 @@ if query == '':
 # this should be a single email address or a keyword of 'any'
 # 'any' will cause the script to pull an entire user list using the directory API
 ###
-if user_id == '':
+if user_id == '' and u_file == '':
   print()
   print("No user was provided; this script requires a user")
   print("Please run again with --user <email_address> or --user any")
@@ -167,6 +169,23 @@ if user_id == 'any':
     print(repr(e))
     print("This is a fatal error, exiting")
     exit()
+
+###
+# --list is optional but can save several minutes if you have several thousands (or tens/hundreds of thousands) of users in your domain
+###
+elif u_file != '':
+  try:
+    user_id_list = []
+    users_file_fh = open(u_file, 'r')
+    for a_line in users_file_fh.readlines():
+      user_id_list.append(a_line.strip('\n'))
+  except Exception as e:
+    print()
+    print("Error reading email addresses from file")
+    print(repr(e))
+    print("This is a fatal error, exiting")
+    print()
+    exit() 
 
 ###
 # no need to walk the API since a user ID is provided

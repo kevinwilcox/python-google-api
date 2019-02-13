@@ -10,10 +10,12 @@ from oauth2client.service_account import ServiceAccountCredentials
 try:
   parser = argparse.ArgumentParser()
   parser.add_argument('--user', help="the complete email address to search; this must be an email address or 'any', there is no default", default = '')
+  parser.add_argument('--list', help="the file of email addresses to search, one per line; this is empty by default and not used if --user is set", default = '')
   parser.add_argument('--query', help="the string to search; for examples, see https://support.google.com/mail/answer/7190?hl=en", default = '')
-  args = parser.parse_args()
-  user_id  = args.user
-  query   = args.query
+  args      = parser.parse_args()
+  user_id   = args.user
+  u_file    = args.list
+  query     = args.query
 except Exception as e:
   print("Error: couldn't assign the provided values")
   print(repr(e))
@@ -24,7 +26,7 @@ except Exception as e:
 ###
 # --user is not optional at this point
 ###
-if user_id == '':
+if user_id == '' and u_file == '':
   print()
   print("No user was provided.")
   print("Please re-run with --user <>, where the username is the user's complete email address")
@@ -86,6 +88,23 @@ if user_id == 'any':
     print(repr(e))
     print("This is a fatal error, exiting")
     exit()
+
+###
+# --list is optional but can save several minutes if you have several thousands (or tens/hundreds of thousands) of users in your domain
+###
+elif u_file != '':
+  try:
+    user_id_list = []
+    users_file_fh = open(u_file, 'r')
+    for a_line in users_file_fh.readlines():
+      user_id_list.append(a_line.strip('\n'))
+  except Exception as e:
+    print()
+    print("Error reading email addresses from file")
+    print(repr(e))
+    print("This is a fatal error, exiting")
+    print()
+    exit() 
 
 ###
 # for this to be true, --user was specified and it was not set to "any"
