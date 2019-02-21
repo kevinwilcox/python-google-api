@@ -141,11 +141,31 @@ def search_mail(thread_queue, sa_creds, query, results_count, outfile):
             print(repr(e))
             thread_queue.task_done()
             exit()
-        except Exception as e:
-          print("Error: couldn't retrieve the message with ID: " + mid)
-          print("This is NOT a fatal error, continuing with next message")
-          print()
-          pass
+        except:
+          print("Error: couldn't retrieve the message with ID %s, waiting two seconds and trying again" % mid)
+          time.sleep(2)
+          try:
+            json_email = "{"
+            msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
+            for a_header in msg_object['payload']['headers']:
+              if a_header['name'] in ['To', 'From', 'Subject', 'Message-ID', 'Date']:
+               json_email = json_email + "\"%s\": \"%s\"," % (a_header['name'], a_header['value'])
+            json_email = json_email + "\"snippet\":\"%s\"}\n" % msg_object['snippet'].encode('utf-8', 'ignore')
+            try:
+              thread_delay = write_output(json_email, outfile)
+            except Exception as e:
+              print()
+              print("Error writing mail to the output file")
+              print(repr(e))
+              thread_queue.task_done()
+              exit()
+          except Exception as e:
+              fh = open('error_log-get_snippet', 'a')
+              fh.write("error getting message %s as %s\n" % (mid, current_user_id))
+              fh.write(repr(e))
+              fh.close()
+              thread_queue.task_done()
+              exit()
     except Exception as e:
       print()
       print("Error: couldn't iterate through the message ID list")
