@@ -71,14 +71,29 @@ def search_mail(thread_queue, sa_creds, query, results_count, outfile):
       delegated = sa_creds.create_delegated(current_user_id)
       http_auth = delegated.authorize(httplib2.Http())
       service = discovery.build('gmail', 'v1', http=http_auth)
-    except Exception as e:
+    except:
       print()
-      print("Error: couldn't connect to Google")
-      print(repr(e))
-      print("This is a fatal error, exiting")
-      print()
-      thread_queue.task_done()
-      exit()
+      print("Error: couldn't connect to Google, waiting two seconds and trying again")
+      try:
+        time.sleep(2)
+        delegated = sa_creds.create_delegated(current_user_id)
+        http_auth = delegated.authorize(httplib2.Http())
+        service = discovery.build('gmail', 'v1', http=http_auth)
+      except:
+        print()
+        print("Error: couldn't connect to Google a second time, waiting four seconds and trying again")
+          try:
+            delegated = sa_creds.create_delegated(current_user_id)
+            http_auth = delegated.authorize(httplib2.Http())
+            service = discovery.build('gmail', 'v1', http=http_auth)
+          except Exception as e:
+            print()
+            print("Three errors connecting to Google as %s, exiting this thread" % current_user_id)
+            fh = open('error_log-get_snippet', 'a')
+            fh.write("error connecting as %s\n" % current_user_id)
+            fh.write("%s" % repr(e))
+            thread_queue.task_done()
+            exit()
 
     ###
     # delegation was successful, perform the search as the current user
