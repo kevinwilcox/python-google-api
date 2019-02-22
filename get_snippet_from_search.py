@@ -82,18 +82,18 @@ def search_mail(thread_queue, sa_creds, query, results_count, outfile):
       except:
         print()
         print("Error: couldn't connect to Google a second time, waiting four seconds and trying again")
-          try:
-            delegated = sa_creds.create_delegated(current_user_id)
-            http_auth = delegated.authorize(httplib2.Http())
-            service = discovery.build('gmail', 'v1', http=http_auth)
-          except Exception as e:
-            print()
-            print("Three errors connecting to Google as %s, exiting this thread" % current_user_id)
-            fh = open('error_log-get_snippet', 'a')
-            fh.write("error connecting as %s\n" % current_user_id)
-            fh.write("%s" % repr(e))
-            thread_queue.task_done()
-            exit()
+        try:
+          delegated = sa_creds.create_delegated(current_user_id)
+          http_auth = delegated.authorize(httplib2.Http())
+          service = discovery.build('gmail', 'v1', http=http_auth)
+        except Exception as e:
+          print()
+          print("Three errors connecting to Google as %s, exiting this thread" % current_user_id)
+          fh = open('error_log-get_snippet', 'a')
+          fh.write("error connecting as %s\n" % current_user_id)
+          fh.write("%s" % repr(e))
+          thread_queue.task_done()
+          exit()
 
     ###
     # delegation was successful, perform the search as the current user
@@ -328,7 +328,7 @@ else:
 ###
 total_users = len(user_id_list)
 if total_users < thread_count:
-  print("number of threads too large; currently %s, setting to %s" % (thread_count, total_users))
+  print("More threads requested than total users; setting thread count to %s" % (thread_count, total_users))
   thread_count = total_users
 
 user_list = [list() for i in range(process_count)]
