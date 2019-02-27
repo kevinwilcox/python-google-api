@@ -129,6 +129,7 @@ def search_mail(thread_queue, sa_creds, query, results_count, outfile):
         mid = a_message['id']
         try:
           json_email = "{"
+          json_email = json_email + "\"google_message_id\":\"%s\"," % mid 
           msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
           for a_header in msg_object['payload']['headers']:
             if a_header['name'] in ['To', 'From', 'Subject', 'Message-ID', 'Date']:
@@ -146,6 +147,7 @@ def search_mail(thread_queue, sa_creds, query, results_count, outfile):
           time.sleep(2)
           try:
             json_email = "{"
+            json_email = json_email + "\"google_message_id\":\"%s\"," % mid 
             msg_object = service.users().messages().get(userId=current_user_id,id=mid).execute()
             for a_header in msg_object['payload']['headers']:
               if a_header['name'] in ['To', 'From', 'Subject', 'Message-ID', 'Date']:
@@ -328,7 +330,7 @@ else:
 ###
 total_users = len(user_id_list)
 if total_users < thread_count:
-  print("More threads requested than total users; setting thread count to %s" % (thread_count, total_users))
+  print("More threads requested than total users; setting thread count to %s" % total_users)
   thread_count = total_users
 
 user_list = [list() for i in range(process_count)]
